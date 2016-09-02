@@ -467,11 +467,23 @@ function create3DContextWithWrapperThatThrowsOnGLError(canvas) {
 /**
  * Tests that an evaluated expression generates a specific GL error.
  * @param {!WebGLContext} gl The WebGLContext to use.
- * @param {number} glError The expected gl error.
+ * @param {number|!Array.<number>} glError The expected gl error. If it's an
+ *        array, will allow any of the values inside of the array.
  * @param {string} evalSTr The string to evaluate.
  */
 var shouldGenerateGLError = function(gl, glError, evalStr) {
   var exception;
+  var errors = [glError];
+
+  if (Array.isArray(glError)) {
+    errors = glError;
+  }
+
+  if (errors.length === 0) {
+    testFailed(evalStr + " harness error: no expected errors.");
+    return;
+  }
+
   try {
     eval(evalStr);
   } catch (e) {
@@ -479,14 +491,29 @@ var shouldGenerateGLError = function(gl, glError, evalStr) {
   }
   if (exception) {
     testFailed(evalStr + " threw exception " + exception);
-  } else {
-    var err = gl.getError();
-    if (err != glError) {
-      testFailed(evalStr + " expected: " + getGLErrorAsString(gl, glError) + ". Was " + getGLErrorAsString(gl, err) + ".");
-    } else {
-      testPassed(evalStr + " was expected value: " + getGLErrorAsString(gl, glError) + ".");
+    return;
+  }
+
+  var err = gl.getError();
+  for (var i = 0; i < errors.length; ++i) {
+    if (err == errors[i]) {
+      testPassed(evalStr + " was expected value: " +
+                 getGLErrorAsString(gl, errors[i]) + ".");
+      return;
     }
   }
+
+  var expectedString;
+  if (errors.length === 1) {
+    expectedString = getGLErrorAsString(gl, errors[0]);
+  } else {
+    expectedString = "one of " + errors.map(function(err) {
+      return getGLErrorAsString(gl, err);
+    }).join(", ");
+  }
+
+  testFailed(evalStr + " expected " + expectedString +
+             ". Was " + getGLErrorAsString(gl, err) + ".");
 };
 
 /**
